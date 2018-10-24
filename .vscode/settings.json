@@ -1,0 +1,15 @@
+// Place your settings in this file to overwrite default and user settings.
+{
+	"files.exclude": {
+		"node_modules": true,
+		"out": true
+	},
+	"search.exclude": {
+		"node_modules": true,
+		"out": true
+	},
+
+	// workspace tab settings
+	"editor.tabSize": 4,
+	"editor.insertSpaces": false
+}

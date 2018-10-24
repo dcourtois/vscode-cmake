@@ -1,0 +1,130 @@
+{
+	"name": "vscode-simplecmake",
+	"displayName": "Simple CMake",
+	"description": "A simple(r) CMake extension allowing to natively configure/build/install/etc. CMake projects.",
+	"version": "0.0.1",
+	"publisher": "damiencourtois",
+	"license": "WTFPL",
+	"homepage": "https://github.com/dcourtois/vscode-simplecmake",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/dcourtois/vscode-simplecmake"
+	},
+	"bugs": {
+		"url": "https://github.com/dcourtois/vscode-simplecmake/issues"
+	},
+	"categories": [
+		"Other"
+	],
+	"engines": {
+		"vscode": "^1.18.0"
+	},
+	"activationEvents": [
+		"workspaceContains:CMakeLists.txt"
+	],
+	"main": "./out/src/main",
+	"contributes": {
+		"commands": [
+			{
+				"command": "simplecmake.configure",
+				"category": "Simple CMake",
+				"title": "configure"
+			},
+			{
+				"command": "simplecmake.reconfigure",
+				"category": "Simple CMake",
+				"title": "reconfigure"
+			},
+			{
+				"command": "simplecmake.build",
+				"category": "Simple CMake",
+				"title": "build"
+			},
+			{
+				"command": "simplecmake.nuke",
+				"category": "Simple CMake",
+				"title": "nuke"
+			},
+			{
+				"command": "simplecmake.clean",
+				"category": "Simple CMake",
+				"title": "clean"
+			},
+			{
+				"command": "simplecmake.install",
+				"category": "Simple CMake",
+				"title": "install"
+			},
+			{
+				"command": "simplecmake.kit",
+				"category": "Simple CMake",
+				"title": "kit"
+			},
+			{
+				"command": "simplecmake.configuration",
+				"category": "Simple CMake",
+				"title": "configuration"
+			},
+			{
+				"command": "simplecmake.target",
+				"category": "Simple CMake",
+				"title": "target"
+			}
+		],
+		"configuration": {
+			"type": "object",
+			"title": "Simple CMake configuration",
+			"properties": {
+				"simplecmake.development": {
+					"type": "boolean",
+					"default": false,
+					"description": "If true, will activate a development output channel to ease development. This can also be used to diagnose what's happening with the extension."
+				},
+				"simplecmake.executable": {
+					"type": "string",
+					"default": null,
+					"description": "CMake executable. By default, use the first one available through the current PATH env var."
+				},
+				"simplecmake.parallelJobs": {
+					"type": "integer",
+					"default": null,
+					"description": "The number of parallel jobs to use for building. By default, will use the number of available cores."
+				},
+				"simplecmake.generator": {
+					"type": "string",
+					"default": "Ninja",
+					"description": "The generator used. By default, uses 'Ninja'. See 'cmake --help' for a list of available generators."
+				},
+				"simplecmake.buildDirectory": {
+					"type": "string",
+					"default": "${workspaceFolder}/build",
+					"description": "Build folder."
+				},
+				"simplecmake.installDirectory": {
+					"type": "string",
+					"default": null,
+					"description": "Install folder. This is a convenience for setting the CMAKE_INSTALL_PREFIX configure option."
+				},
+				"simplecmake.configureArguments": {
+					"type": "array",
+					"default": null,
+					"description": "Array of arguments that are passed to CMake on the configure step."
+				}
+			}
+		}
+	},
+	"scripts": {
+		"vscode:prepublish": "npm run compile",
+		"compile": "tsc -p ./",
+		"watch": "tsc -watch -p ./",
+		"postinstall": "node ./node_modules/vscode/bin/install",
+		"test": "npm run compile && node ./node_modules/vscode/bin/test"
+	},
+	"devDependencies": {
+		"typescript": "3.0.3",
+		"vscode": "1.1.21",
+		"mocha": "5.2.0",
+		"@types/node": "10.9.4",
+		"@types/mocha": "5.2.5"
+	}
+}
