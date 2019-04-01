@@ -30,55 +30,38 @@ import * as kits from "./kits";
  * List of config (settings) which need to trigger various CMake actions.
  * This list is used in `initialize` to automatically update the cmake module
  * when needed.
+ *
+ * This mechanism handles only the settings appearing in package.json. For
+ * our custom settings (workspace states, use the utils.settings API)
  */
 const _configChanges: { [key: string]: Function } = {
 
-	// executable change, stop the server
+	// executable change, restart the server
 	"executable": () => {
-		if (isRunning() === true) {
-			logger.log("Stopping CMake server...");
-			stop();
-		}
+		logger.log("CMake executable changed, restarting CMake server...");
+		restart(true);
 	},
 
-	// build directory, nuke the previous folder, stop the server
-	"buildDirectory": () => {
-		nuke();
-		if (isRunning() === true) {
-			logger.log("Stopping CMake server...");
-			stop();
-		}
-	},
-
-	// generator, delete the cache, stop the server
+	// generator, delete the cache, restart the server
 	"generator": () => {
-		const cacheFile = getCacheFile();
-		if (fs.existsSync(cacheFile) === true) {
-			logger.log("Deleting CMake cache...");
-			fs.unlinkSync(getCacheFile());
-		}
-
-		if (isRunning() === true) {
-			logger.log("Stopping CMake server...");
-			stop();
-		}
+		logger.log("geneartor changed, restarting CMake server...");
+		restart(true);
 	},
 
-	// kit, stop the server
-	"kit": () => {
-		if (isRunning() === true) {
-			logger.log("Stopping CMake server...");
-			stop();
-		}
-	},
-
-	// configure arguments, configure
+	// configure arguments, configure needed
 	"configureArguments": () => {
 		_configured = false;
 	},
 
-	// install directory, configure
-	"configure":() => {
+	// build directory, nuke the previous folder, restart the server
+	"buildDirectory": () => {
+		logger.log("build directory changed, restarting CMake server...");
+		nuke();
+		restart(false);
+	},
+
+	// install directory, configure needed
+	"installDirectory": () => {
 		_configured = false;
 	}
 
@@ -112,12 +95,15 @@ export async function initialize(context: vscode.ExtensionContext) {
 		// check config names
 		for (const config in _configChanges) {
 			if (event.affectsConfiguration(`simplecmake.${config}`) === true) {
-				logger.log(`Configuratin change on simplecmake.${config}`);
+				logger.debug(`configuration change on simplecmake.${config}`);
 				_configChanges[config]();
 				return;
 			}
 		}
 	});
+
+	// on kit change, we need to restart CMake server
+	utils.settings.on("kit", restart);
 
 	// start CMake server
 	start();
@@ -137,6 +123,11 @@ let _cmakePipe: net.Socket | null = null;
  * ID of the CMake server process
  */
 let _cmakePid: number = -1;
+
+/**
+ * true if CMake is started, false otherwise
+ */
+let _cmakeStarted: boolean = false;
 
 /**
  * true when the handshake has been correctly done, false otherwise
@@ -168,8 +159,9 @@ let _postHandshake: Function | null = null;
  */
 function stop() {
 	// kill the CMake process if it's still running
-	// note: reset _cmakePid to avoid re-creating the communication pipe
 	if (_cmakePid !== -1) {
+		// note : we set _cmakePid to -1 so that we know CMake server stopping is
+		// intended (see code in start() which check for this value)
 		const pid = _cmakePid;
 		_cmakePid = -1;
 		process.kill(pid);
@@ -180,6 +172,9 @@ function stop() {
 		_cmakePipe.end();
 		_cmakePipe = null;
 	}
+
+	// stop
+	_cmakeStarted = false;
 }
 
 /**
@@ -233,16 +228,18 @@ function receiveMessage(message) {
 
 				// build system is dirty
 				case "dirty":
+					logger.debug("server signal - dirty");
 					_configured = false;
 					break;
 
 				// silent
 				case "fileChange":
+					logger.debug("server signal - fileChange -", message);
 					break;
 
 				// not handled
 				default:
-					logger.log("server signal -", JSON.stringify(message));
+					logger.debug("server signal -", JSON.stringify(message));
 					break;
 
 			}
@@ -251,6 +248,8 @@ function receiveMessage(message) {
 
 		// startup message, ensure we have at least 1.x protocol version supported
 		case "hello":
+			logger.debug("server hello");
+
 			// check the protocols
 			let supported = false;
 			for (const protocolVersion of message.supportedProtocolVersions) {
@@ -289,6 +288,7 @@ function receiveMessage(message) {
 
 				// initial handshake reply
 				case "handshake":
+					logger.debug("server reply - handshake");
 					_handshake = true;
 
 					// callback if needed
@@ -304,11 +304,13 @@ function receiveMessage(message) {
 
 				// global settings
 				case "globalSettings":
+					logger.debug("server reply - globalSettings -", message);
 					generators.initialize(message["capabilities"]["generators"]);
 					break;
 
 				// configure done
 				case "configure":
+					logger.debug("server reply - configure");
 					logger.log("Configuring done");
 
 					// generate build system files
@@ -318,6 +320,9 @@ function receiveMessage(message) {
 
 				// compute done
 				case "compute":
+					logger.debug("server reply - compute");
+
+					// configuration's done
 					_configured = true;
 
 					// optional 1 time post-configure callback
@@ -330,11 +335,12 @@ function receiveMessage(message) {
 
 				// code model
 				case "codemodel":
+					logger.debug("server reply - codemodel");
 					break;
 
 				// unhandled
 				default:
-					logger.log("server reply -", JSON.stringify(message));
+					logger.debug("server reply -", JSON.stringify(message));
 					break;
 
 			}
@@ -343,6 +349,7 @@ function receiveMessage(message) {
 
 		// progress types
 		case "progress":
+			logger.debug("server progress");
 			break;
 
 		default:
@@ -359,6 +366,7 @@ function receiveMessage(message) {
  */
 function sendMessage(message) {
 	console.assert(_cmakePipe !== null);
+	logger.debug("server send -", message);
 
 	// add common stuff
 	message["protocolVersion"] = { "major": 1 };
@@ -374,9 +382,22 @@ function sendMessage(message) {
  * Start the CMake server
  */
 async function start(callback?: Function) {
-	// ensure we don't already have a CMake instance running
+	// avoid multiple start
+	if (_cmakeStarted === true) {
+		return;
+	}
+
+	// start
+	_cmakeStarted = true;
 	console.assert(_cmakePid === -1);
 	console.assert(_cmakePipe === null);
+
+	// get the current kit
+	const kit = getKit();
+	if (kit === undefined) {
+		logger.log("Not kit selected");
+		return;
+	}
 
 	// before starting, check CMake version
 	utils.execute(getExecutable(), [ "--version" ], { "logCommand": true }).then(
@@ -402,8 +423,9 @@ async function start(callback?: Function) {
 						`--pipe=${pipeName}`
 					],
 					{
+						"env": kit.env,
 						"logCommand": true,
-						"onStarted": (pid) => {
+						"onStarted": (pid: number) => {
 
 							// CMake server successfully created, keep the PID, and log
 							_cmakePid = pid;
@@ -417,11 +439,14 @@ async function start(callback?: Function) {
 							// CMake takes a bit of time before creating its communication pipe, so we
 							// need to connect, check for errors, and try again a bit later until it's ok
 							const connect = () => {
+								logger.debug("cmake pipe - connect");
+
 								// create the connection
 								_cmakePipe = net.createConnection(pipeName);
 
 								// watch for error and retry
 								_cmakePipe.on("error", () => {
+									logger.debug("cmake pipe - error");
 									if (_cmakePid !== -1) {
 										setTimeout(connect, 10);
 									}
@@ -449,10 +474,15 @@ async function start(callback?: Function) {
 
 						}
 					}
-				).then(() => {
+				).then((result) => {
 
 					// the server was stopped
-					logger.log("CMake server stopped");
+					if (result.code === 0 || _cmakePid === -1) {
+						logger.log("cmake server stopped");
+					} else {
+						logger.log(`cmake server unexpectedly stopped:`);
+						logger.log(`${result.stderr}`);
+					}
 
 					// in case it was stopped externally, reset the ID
 					_cmakePid = -1;
@@ -504,6 +534,27 @@ async function start(callback?: Function) {
 		}
 	);
 
+}
+
+/**
+ * Utility to restart the CMake server after a config change.
+ *
+ * @param deleteCache
+ * 	If true, the cache file will be deleted.
+ */
+function restart(deleteCache: boolean) {
+	if (isRunning() === true) {
+		stop();
+	}
+
+	if (deleteCache === true) {
+		const cacheFile = getCacheFile();
+		if (fs.existsSync(cacheFile) === true) {
+			fs.unlinkSync(getCacheFile());
+		}
+	}
+
+	start();
 }
 
 /**
@@ -581,45 +632,39 @@ function getCacheFile(): string {
  */
 export async function configure(cleanCache: boolean = false) {
 
-	// configure function
-	const doConfigure = () => {
-
-		// get the current kit
-		const kit = getKit();
-		if (kit === undefined) {
-			logger.log("Not kit selected");
-			return;
-		}
-
-		// clean the cache file if needed
-		if (cleanCache === true) {
-			const cacheFile = getCacheFile();
-			if (fs.existsSync(cacheFile) === true) {
-				logger.log(`Deleting cache file ${cacheFile}...`);
-				fs.unlinkSync(cacheFile);
-				logger.log("Done");
-			}
-		}
-
-		logger.log("Configuring...")
-		sendMessage({
-			"type": "configure",
-			"cacheArguments": [
-				`-DCMAKE_BUILD_TYPE=${getConfiguration()}`,
-				`-DCMAKE_C_COMPILER:FILEPATH=${kit.compiler}`,
-				`-DCMAKE_CXX_COMPILER:FILEPATH=${kit.compiler}`,
-				`-DCMAKE_LINKER:FILEPATH=${kit.linker}`
-			]
-		});
-
-	}
-
-	// start the server or configure directly
+	// do nothing if the server is not running
 	if (isRunning() === false) {
-		start(doConfigure);
-	} else {
-		doConfigure();
+		logger.log("cmake server is not yet running, aborting");
+		return;
 	}
+
+	// get the current kit
+	const kit = getKit();
+	if (kit === undefined) {
+		logger.log("Not kit selected");
+		return;
+	}
+
+	// clean the cache file if needed
+	if (cleanCache === true) {
+		const cacheFile = getCacheFile();
+		if (fs.existsSync(cacheFile) === true) {
+			logger.log(`Deleting cache file ${cacheFile}...`);
+			fs.unlinkSync(cacheFile);
+			logger.log("Done");
+		}
+	}
+
+	logger.log("Configuring...")
+	sendMessage({
+		"type": "configure",
+		"cacheArguments": [
+			`-DCMAKE_BUILD_TYPE=${getConfiguration()}`,
+			`-DCMAKE_C_COMPILER:FILEPATH=${kit.compiler}`,
+			`-DCMAKE_CXX_COMPILER:FILEPATH=${kit.compiler}`,
+			`-DCMAKE_LINKER:FILEPATH=${kit.linker}`
+		]
+	});
 
 }
 
@@ -633,6 +678,13 @@ export async function build() {
 
 	const launchBuild = () => {
 		logger.log("building...")
+
+		// get the current kit
+		const kit = getKit();
+		if (kit === undefined) {
+			logger.log("Not kit selected");
+			return;
+		}
 
 		// common arguments
 		let args = [
@@ -656,7 +708,8 @@ export async function build() {
 		// execution options
 		const options = {
 			"logCommand": true,
-			"onStdout" : (message) => { logger.log(message); }
+			"onStdout": (message) => { logger.log(message); },
+			"env": kit.env
 		}
 
 		// launch CMake
@@ -687,6 +740,7 @@ export function nuke() {
  */
 export async function clean() {
 	if (isRunning() === false) {
+		logger.log("cmake server not running, aborting");
 		return;
 	}
 
@@ -716,11 +770,29 @@ export async function clean() {
  */
 export async function install() {
 	if (isRunning() === false) {
+		logger.log("cmake server not running, aborting");
 		return;
 	}
 
-	diagnostics.clear();
-	logger.clear();
+	const launchInstall = () => {
+		logger.log("installing...")
+		const args = [
+			"--build",	getBuildDirectory(),
+			"--target",	"install"
+		];
+		const options = {
+			"logCommand": true,
+			"onStdout" : (message) => { logger.log(message); }
+		}
+		utils.execute(getExecutable(), args, options);
+	};
+
+	if (_configured == false) {
+		_postConfiguration = launchInstall;
+		configure();
+	} else {
+		launchInstall();
+	}
 }
 
 /**

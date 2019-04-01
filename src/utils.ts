@@ -325,7 +325,7 @@ export namespace settings {
 	 */
 	export function register(name: string) {
 		// assert if the setting is already registered
-		console.assert(registered.hasOwnProperty(name) === false, `setting ${name} already registered`);
+		console.assert(registered.hasOwnProperty(name) === false, `utils.settings.register - "${name}" already registered`);
 
 		// register
 		const setting = new Setting();
@@ -388,7 +388,7 @@ export namespace settings {
 	 * 	when this function is called.
 	 */
 	export function on(name: string, callback: (value) => void) {
-		console.assert(registered.hasOwnProperty(name) === true, "unknown setting");
+		console.assert(registered.hasOwnProperty(name) === true, `utils.settings.on - unknown setting "${name}"`);
 
 		// register the listener
 		const setting = registered[name];

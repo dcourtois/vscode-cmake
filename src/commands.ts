@@ -19,6 +19,7 @@ import * as vscode from "vscode";
 import * as cmake from "./cmake";
 import * as utils from "./utils";
 import * as kits from "./kits";
+import * as logger from "./logger";
 
 
 /**
@@ -117,6 +118,7 @@ class CommandCenter implements vscode.Disposable {
 	 */
 	@command("configure")
 	async configure() {
+		logger.debug("simplecmake.configure command called");
 		cmake.configure();
 	}
 
@@ -125,6 +127,7 @@ class CommandCenter implements vscode.Disposable {
 	 */
 	@command("reconfigure")
 	async reconfigure() {
+		logger.debug("simplecmake.reconfigure command called");
 		cmake.configure(true);
 	}
 
@@ -133,6 +136,7 @@ class CommandCenter implements vscode.Disposable {
 	 */
 	@command("build")
 	async build() {
+		logger.debug("simplecmake.build command called");
 		cmake.build();
 	}
 
@@ -141,6 +145,7 @@ class CommandCenter implements vscode.Disposable {
 	 */
 	@command("clean")
 	async clean() {
+		logger.debug("simplecmake.clean command called");
 		cmake.clean();
 	}
 
@@ -149,6 +154,7 @@ class CommandCenter implements vscode.Disposable {
 	 */
 	@command("nuke")
 	async nuke() {
+		logger.debug("simplecmake.nuke command called");
 		cmake.nuke();
 	}
 
@@ -157,6 +163,7 @@ class CommandCenter implements vscode.Disposable {
 	 */
 	@command("install")
 	async install() {
+		logger.debug("simplecmake.install command called");
 		cmake.install();
 	}
 
@@ -165,6 +172,7 @@ class CommandCenter implements vscode.Disposable {
 	 */
 	@command("kit")
 	async kit() {
+		logger.debug("simplecmake.kit command called");
 		vscode.window.showQuickPick(kits.getKits()).then((value) => {
 			utils.settings.set("kit", value);
 		});
@@ -175,6 +183,7 @@ class CommandCenter implements vscode.Disposable {
 	 */
 	@command("configuration")
 	async configuration() {
+		logger.debug("simplecmake.configuration command called");
 		vscode.window.showQuickPick(cmake.getConfigurations()).then((value) => {
 			utils.settings.set("configuration", value);
 		});
@@ -185,6 +194,7 @@ class CommandCenter implements vscode.Disposable {
 	 */
 	@command("target")
 	async target() {
+		logger.debug("simplecmake.target command called");
 		vscode.window.showQuickPick(cmake.getTargets()).then((value) => {
 			utils.settings.set("target", value);
 		});

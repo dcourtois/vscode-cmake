@@ -35,6 +35,7 @@ export function initialize() {
  */
 export function log(...args: string[]) {
 	logTo(_outputChannel, true, ...args);
+	logTo(_devOutputChannel, false, ...args);
 }
 
 /**
@@ -61,7 +62,17 @@ function logTo(channel: vscode.OutputChannel, show: boolean, ...args: string[]) 
 	}
 
 	// format the message
-	const message = args.join(" ");
+	let message: string = "";
+	for (const arg of args) {
+		if (message.length > 0) {
+			message += " ";
+		}
+		if (typeof arg === "object") {
+			message += JSON.stringify(arg, null, "  ");
+		} else {
+			message += arg;
+		}
+	}
 
 	// push the channel to the foreground if needed
 	if (show === true) {

@@ -15,13 +15,14 @@ import * as status from "./status";
 /**
  * Called once on extension's activation
  */
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
 
-	// initialize everything (the order is kind of important)
+	// initialize everything (the order is of important, some modules assume that other ones
+	// already are correctly initialized)
 	utils.initialize(context);
 	logger.initialize();
-	kits.initialize(context);
 	commands.initialize();
+	await kits.initialize(context);
 	cmake.initialize(context);
 	diagnostics.initialize();
 	status.initialize();

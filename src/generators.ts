@@ -7,9 +7,7 @@
  * This module handles detection of supported generators.
  */
 
-import * as vscode from "vscode";
-
-import * as utils from "./utils";
+import * as os from "os";
 
 
 /**
@@ -26,27 +24,37 @@ export class Generator {
 };
 
 /**
- * The registered kits. The list is set in `initialize`
+ * The supported generators. It's initialized in the initialize method.
  */
-let _generators: Generator[] = [];
+const _generators: Generator[] = [];
 
 /**
  * Initialize the list of generators. This is called after a globalSettings message has
  * been received from CMake server.
  *
  * @param generators
- * 	The list of generators as retreived from CMake.
+ * 	The list of generators as retreived from CMake. Currently not used.
  */
 export async function initialize(generators) {
 
-	_generators = [];
-	_generators.push({
-		"name": "Visual Studio 15 2017 Win64",
-		"options": [
-			"/nologo",
-			"/verbosity:quiet"
-		]
-	});
+	switch (os.platform()) {
+
+		// windows generators
+		case "win32":
+			_generators.push({
+				"name": "Visual Studio 15 2017 Win64",
+				"options": [ "/nologo", "/verbosity:quiet" ]
+			});
+
+			// fallthrough, we also want Ninja
+
+		// other platforms, Ninja only
+		default:
+			_generators.push({
+				"name": "Ninja",
+				"options": []
+			});
+	}
 
 }
 

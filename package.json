@@ -54,21 +54,6 @@
 				"command": "simplecmake.install",
 				"category": "Simple CMake",
 				"title": "install"
-			},
-			{
-				"command": "simplecmake.kit",
-				"category": "Simple CMake",
-				"title": "kit"
-			},
-			{
-				"command": "simplecmake.configuration",
-				"category": "Simple CMake",
-				"title": "configuration"
-			},
-			{
-				"command": "simplecmake.target",
-				"category": "Simple CMake",
-				"title": "target"
 			}
 		],
 		"configuration": {
@@ -95,6 +80,11 @@
 					"default": "Ninja",
 					"description": "The generator used. By default, uses 'Ninja'. See 'cmake --help' for a list of available generators."
 				},
+				"simplecmake.configureArguments": {
+					"type": "array",
+					"default": null,
+					"description": "Array of arguments that are passed to CMake on the configure step."
+				},
 				"simplecmake.buildDirectory": {
 					"type": "string",
 					"default": "${workspaceFolder}/build",
@@ -104,11 +94,6 @@
 					"type": "string",
 					"default": null,
 					"description": "Install folder. This is a convenience for setting the CMAKE_INSTALL_PREFIX configure option."
-				},
-				"simplecmake.configureArguments": {
-					"type": "array",
-					"default": null,
-					"description": "Array of arguments that are passed to CMake on the configure step."
 				}
 			}
 		}
