@@ -68,6 +68,72 @@ const _configChanges: { [key: string]: Function } = {
 };
 
 /**
+ * Type of targets
+ */
+const enum TargetType {
+	/**
+	 * EXECUTABLE in CMake's codemodel
+	 */
+	Executable = 0,
+
+	/**
+	 * SHARED_LIBRARY in CMake's codemodel
+	 */
+	SharedLibrary = 1,
+
+	/**
+	 * STATIC_LIBRARY in CMake's codemodel
+	 */
+	StaticLibrary = 2,
+
+	/**
+	 * UTILITY in CMake's codemodel
+	 */
+	Utility = 3,
+
+	/**
+	 * Unsupported
+	 */
+	Unsupported = 4
+}
+
+/**
+ * CMake target object
+ */
+class Target {
+	/**
+	 * The name of the target. This is the one used to build specific targets, etc.
+	 */
+	name: string;
+
+	/**
+	 * The type of the target
+	 */
+	type: TargetType;
+
+	/**
+	 * Constructor
+	 */
+	constructor(name: string, type: TargetType) {
+		this.name = name;
+		this.type = type;
+	}
+
+	/**
+	 * Helper to get the target type from a CMake's codemodel type
+	 */
+	static getType(type: string): TargetType {
+		switch (type) {
+			case "EXECUTABLE":		return TargetType.Executable;
+			case "SHARED_LIBRARY":	return TargetType.SharedLibrary;
+			case "STATIC_LIBRARY":	return TargetType.StaticLibrary;
+			case "UTILITY":			return TargetType.Utility;
+			default:				return TargetType.Unsupported;
+		}
+	}
+}
+
+/**
  * Initialize the module. Call only once
  *
  * @param context
@@ -130,11 +196,6 @@ let _cmakePid: number = -1;
 let _cmakeStarted: boolean = false;
 
 /**
- * true when the handshake has been correctly done, false otherwise
- */
-let _handshake: boolean = false;
-
-/**
  * true when configured
  */
 let _configured: boolean = false;
@@ -145,14 +206,19 @@ let _configured: boolean = false;
 const _baseCookie: string = `simple-cmake-${process.pid}`;
 
 /**
- * optional post-configure function
+ * optional post-configure functions
  */
 let _postConfiguration: Function | null = null;
 
 /**
- * optional post-handshake function
+ * optional post-handshake functions
  */
 let _postHandshake: Function | null = null;
+
+/**
+ * The list of targets for the project. This is updated after each configure.
+ */
+let _targets: { [key: string]: Target } = {};
 
 /**
  * Stop the CMake server and communication pipe.
@@ -289,7 +355,6 @@ function receiveMessage(message) {
 				// initial handshake reply
 				case "handshake":
 					logger.debug("server reply - handshake");
-					_handshake = true;
 
 					// callback if needed
 					if (_postHandshake !== null) {
@@ -325,17 +390,27 @@ function receiveMessage(message) {
 					// configuration's done
 					_configured = true;
 
+					// gather targets
+					logger.log("Getting targets...");
+					sendMessage({ "type": "codemodel" });
+					break;
+
+				// code model
+				case "codemodel":
+					logger.debug("server reply - codemodel -", message);
+
+					// parse codemodel to extract what we need
+					if (parseCodemodel(message) === true) {
+						const targetCount = getTargets().length - 1;
+						logger.log(`Done. Found ${targetCount} target${targetCount > 1 ? "s" : ""}`);
+					}
+
 					// optional 1 time post-configure callback
 					if (_postConfiguration !== null) {
 						_postConfiguration();
 						_postConfiguration = null;
 					}
 
-					break;
-
-				// code model
-				case "codemodel":
-					logger.debug("server reply - codemodel");
 					break;
 
 				// unhandled
@@ -628,6 +703,110 @@ function getCacheFile(): string {
 }
 
 /**
+ * Get a list of targets. This will only return "[all]" until the project is configured.
+ */
+export function getTargets() {
+	const targets = [ "[all]" ];
+	for (const target in _targets) {
+		targets.push(target);
+	}
+	return targets;
+}
+
+/**
+ * Get a list of configurations (build type)
+ */
+export async function getConfigurations() {
+	return utils.getConfig(
+		"cmake",
+		"configurations",
+		[
+			"Debug",
+			"Release",
+			"RelWithDebInfo",
+			"MinSizeRel"
+		]
+	);
+}
+
+/**
+ * Parse the code model to extract targets. See https://cmake.org/cmake/help/v3.7/manual/cmake-server.7.html
+ *
+ * @param codemodel
+ * 	The codemodel object returned by CMake server.
+ */
+function parseCodemodel(codemodel: object): boolean {
+	logger.debug("parsing codemodel");
+
+	// clear previous targets
+	_targets = {};
+
+	// error check
+	if (codemodel["configurations"] === undefined) {
+		logger.log("error parsing code model: no 'configurations' field");
+		return false;
+	}
+
+	// get the active configuration
+	let foundConfiguration = false;
+	let foundTarget = false;
+	for (const config of codemodel["configurations"]) {
+		if (config.name.toLowerCase() === getConfiguration().toLowerCase()) {
+			logger.debug(`  configuration ${config.name}`);
+			foundConfiguration = true;
+
+			if (config["projects"] === undefined) {
+				logger.debug(`    doesn't have a 'projects' field, ignoring`);
+				continue;
+			}
+
+			for (const project of config["projects"]) {
+				logger.debug(`    project ${project.name}`);
+
+				// error check
+				if (project["targets"] === undefined) {
+					logger.debug(`      doesn't have a 'targets' field, ignoring`);
+					continue;
+				}
+
+				for (const target of project["targets"]) {
+
+					const name = target["name"];
+					if (name === undefined) {
+						logger.debug("        invalid target, missing 'name' field");
+						continue;
+					}
+
+					const type = Target.getType(target["type"]);
+					if (type === TargetType.Unsupported) {
+						logger.debug(`        unsupported target type ${target["type"]}`);
+						continue;
+					}
+
+					_targets[name] = new Target(target["name"], type);
+					foundTarget = true;
+
+				}
+
+			}
+
+		}
+	}
+
+	// check errors
+	if (foundConfiguration === false) {
+		logger.log(`error parsing code model: couldn't find configuration (${getConfiguration()})`);
+		return false;
+	} else if (foundTarget === false) {
+		logger.log(`error parsing code model: couldn't find any target in configuration (${getConfiguration()})`);
+		return false;
+	}
+
+	// we successfully parse the targets
+	return true;
+}
+
+/**
  * Asynchronously configure.
  */
 export async function configure(cleanCache: boolean = false) {
@@ -708,7 +887,17 @@ export async function build() {
 		// execution options
 		const options = {
 			"logCommand": true,
-			"onStdout": (message) => { logger.log(message); },
+			"onStdout": (message) => {
+				if (typeof message === "object") {
+					for (const msg of message) {
+						if (msg.length > 0) {
+							logger.log(msg);
+						}
+					}
+				} else {
+					logger.log(message);
+				}
+			},
 			"env": kit.env
 		}
 
@@ -752,7 +941,17 @@ export async function clean() {
 		];
 		const options = {
 			"logCommand": true,
-			"onStdout" : (message) => { logger.log(message); }
+			"onStdout" : (message) => {
+				if (typeof message === "object") {
+					for (const msg of message) {
+						if (msg.length > 0) {
+							logger.log(msg);
+						}
+					}
+				} else {
+					logger.log(message);
+				}
+			}
 		}
 		utils.execute(getExecutable(), args, options);
 	};
@@ -793,27 +992,4 @@ export async function install() {
 	} else {
 		launchInstall();
 	}
-}
-
-/**
- * Get a list of targets. This will only return "all" until the project is configured.
- */
-export async function getTargets() {
-	return ["all"];
-}
-
-/**
- * Get a list of configurations (build type)
- */
-export async function getConfigurations() {
-	return utils.getConfig(
-		"cmake",
-		"configurations",
-		[
-			"Debug",
-			"Release",
-			"RelWithDebInfo",
-			"MinSizeRel"
-		]
-	);
 }

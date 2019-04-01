@@ -18,7 +18,7 @@ This readme will be updated as I go along, and the [changelog](Changelog.md) wil
 
 # Supported Commands
 
-None
+	- configure
 
 # Development
 
@@ -36,7 +36,8 @@ None
 
 ## Code convention
 
-- Use `tabs` and set their width as 4 spaces in your edior. I don't care what you prefer, 4 spaces instead of 1 tab is a waste of disk space.
+- Use `tabs` and set their width as `4` spaces in your edior to align things correctly.
+- Document additions using [JSDoc](http://usejsdoc.org/index.html) syntax.
 - Comment your code. And before you object: no, your code is not self-explanatory.
 - Use types wherever you can (in function signatures, etc.) for better "compile-time" checks.
 - Favor `const` over `let`, and *never* use `var`.
@@ -49,4 +50,4 @@ None
 Code convention will *never* please everyone but they are necessary. So:
 
 - Don't bother trying to convince me to change them unless you have a really good point
-- Respect them if you want me to consider pull requests :)
+- Follow them if you want me to consider pull requests :)
