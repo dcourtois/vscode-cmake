@@ -16,9 +16,32 @@ project for me.
 This project is hihgly experimental. At the moment it doesn't even configure/build a CMake project.
 This readme will be updated as I go along, and the [changelog](Changelog.md) will contain the history.
 
-# Supported Commands
+# Supported
 
-	- configure
+This is still a TODO:
+
+### Basic functionalities
+
+- Commands:
+	- [x] configure
+	- [ ] reconfigure
+	- [x] build
+	- [ ] rebuild
+	- [x] clean
+	- [ ] install
+
+- Setup:
+	- [x] CMake executable
+	- [x] Generators
+		- [x] Ninja
+		- [x] Visual Studio 2017 x64
+	- [x] Configure arguments
+	- [x] Build directory
+	- [x] Install directory
+	- [x] Build parallel jobs
+	- [ ] Compilation Kits
+		- [x] Visual Studio 2017
+		- [ ] Visual Studio 2017 - Clang
 
 # Development
 
