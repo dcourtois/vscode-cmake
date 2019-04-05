@@ -53,14 +53,14 @@ This is still a TODO:
 
 ## Setup
 
-- clone `git clone https://github.com/dcourtois/vscode-simplecmake.git`
-- open `vscode-simplecmake` folder in Visual Studio Code
+- clone `git clone https://github.com/dcourtois/vscode-cmake.git`
+- open `vscode-cmake` folder in Visual Studio Code
 - in the terminal, enter `npm install .` to install everything needed locally
 
 ## Code convention
 
 - Use `tabs` and set their width as `4` spaces in your edior to align things correctly.
-- Document additions using [JSDoc](http://usejsdoc.org/index.html) syntax.
+- Document classes, functions, etc. using [JSDoc](http://usejsdoc.org/index.html) syntax.
 - Comment your code. And before you object: no, your code is not self-explanatory.
 - Use types wherever you can (in function signatures, etc.) for better "compile-time" checks.
 - Favor `const` over `let`, and *never* use `var`.
@@ -72,5 +72,5 @@ This is still a TODO:
 
 Code convention will *never* please everyone but they are necessary. So:
 
-- Don't bother trying to convince me to change them unless you have a really good point
-- Follow them if you want me to consider pull requests :)
+- Don't bother trying to convince me to change it unless you have a really good point.
+- Follow it if you want me to consider pull requests :)
